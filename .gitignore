@@ -352,5 +352,4 @@ TODO.md
 
 # data/ contents are not committed (dataset too large), only .gitkeep
 /data/*
-!/data/.gitkeep
 !/data/README.md
