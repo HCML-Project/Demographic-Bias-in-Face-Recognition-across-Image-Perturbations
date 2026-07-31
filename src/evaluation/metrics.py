@@ -139,6 +139,71 @@ def compute_metrics(similarities: np.ndarray, labels: np.ndarray) -> Metrics:
     )
 
 
+def eval_at_threshold(
+    similarities: np.ndarray,
+    labels: np.ndarray,
+    threshold: float,
+) -> tuple[float, float]:
+    """
+    Evaluate FMR and FNMR at a fixed threshold.
+
+    Args:
+        similarities: 1D array of similarity scores.
+        labels: 1D array of binary labels (1 = genuine, 0 = impostor).
+        threshold: The decision threshold (similarities >= threshold → predicted genuine).
+
+    Returns:
+        Tuple of (FMR, FNMR).
+    """
+    predicted_positive = similarities >= threshold
+    positives = labels == 1
+    negatives = labels == 0
+    n_pos = int(np.sum(positives))
+    n_neg = int(np.sum(negatives))
+    fnmr = float(np.sum(~predicted_positive[positives]) / n_pos) if n_pos > 0 else float("nan")
+    fmr = float(np.sum(predicted_positive[negatives]) / n_neg) if n_neg > 0 else float("nan")
+    return fmr, fnmr
+
+
+def compute_metrics_at_thresholds(
+    similarities: np.ndarray,
+    labels: np.ndarray,
+    reference: "Metrics",
+) -> "Metrics":
+    """
+    Compute Metrics for a group using thresholds derived from a reference (pooled) Metrics object.
+
+    All threshold fields are copied from `reference`; FMR/FNMR fields are evaluated
+    against the group's own similarities/labels at those shared thresholds.
+
+    Args:
+        similarities: 1D array of similarity scores for this group.
+        labels: 1D array of binary labels for this group.
+        reference: Metrics object from the pooled/overall distribution whose thresholds are used.
+
+    Returns:
+        Metrics object with shared thresholds and group-specific FMR/FNMR values.
+    """
+    eer_fmr, eer_fnmr = eval_at_threshold(similarities, labels, reference.EER_threshold)
+    zero_fmr, zero_fnmr = eval_at_threshold(similarities, labels, reference.ZeroFMR_threshold)
+    fmr100_fmr, fmr100_fnmr = eval_at_threshold(similarities, labels, reference.FMR100_threshold)
+    fmr1000_fmr, fmr1000_fnmr = eval_at_threshold(similarities, labels, reference.FMR1000_threshold)
+
+    return Metrics(
+        EER=(eer_fmr + eer_fnmr) / 2,
+        EER_threshold=reference.EER_threshold,
+        ZeroFMR_FMR=zero_fmr,
+        ZeroFMR_FNMR=zero_fnmr,
+        ZeroFMR_threshold=reference.ZeroFMR_threshold,
+        FMR100_FMR=fmr100_fmr,
+        FMR100_FNMR=fmr100_fnmr,
+        FMR100_threshold=reference.FMR100_threshold,
+        FMR1000_FMR=fmr1000_fmr,
+        FMR1000_FNMR=fmr1000_fnmr,
+        FMR1000_threshold=reference.FMR1000_threshold,
+    )
+
+
 def compute_degree_of_bias(series: pd.Series) -> float:
     """
     Compute the Degree of Bias (DoB) for a given metric across demographic groups.

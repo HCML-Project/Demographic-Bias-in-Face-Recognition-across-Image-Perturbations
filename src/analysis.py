@@ -34,7 +34,7 @@ from evaluation.report import (
     create_verification_records,
     save_report,
 )
-from evaluation.metrics import Metrics, compute_metrics
+from evaluation.metrics import Metrics, compute_metrics, compute_metrics_at_thresholds
 from evaluation.visualize import (
     plot_degree_of_bias_per_perturbation,
     plot_fairness_discrimination_rate_per_perturbation,
@@ -136,20 +136,22 @@ def compute_all_metrics(
             continue
 
         perturbation_results[perturbation.path][race] = results
-        perturbation_metrics[perturbation.path][race] = compute_metrics(
-            results.similarities, results.labels
-        )
 
-    # compute overall Metrics for each perturbation by pooling all races together
+    # For each perturbation: compute pooled overall metrics first, then evaluate
+    # each group at those shared thresholds (one threshold for all groups).
     for perturbation in perturbations:
         race_results = perturbation_results.get(perturbation.path)
         if not race_results:
             continue
 
         sims, labels = pool_overall(race_results)
-        perturbation_metrics[perturbation.path][OVERALL_GROUP_KEY] = compute_metrics(
-            sims, labels
-        )
+        overall_metrics = compute_metrics(sims, labels)
+        perturbation_metrics[perturbation.path][OVERALL_GROUP_KEY] = overall_metrics
+
+        for race, results in race_results.items():
+            perturbation_metrics[perturbation.path][race] = compute_metrics_at_thresholds(
+                results.similarities, results.labels, overall_metrics
+            )
 
     return perturbation_results, perturbation_metrics
 
